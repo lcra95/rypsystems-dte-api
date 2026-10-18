@@ -14,6 +14,7 @@ from typing import Optional
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from rypsystems_dte import BancoCentral
 from rypsystems_dte.errors import RypDteError
 
 from . import __version__
@@ -27,6 +28,13 @@ from .recibidos import Recibidos
 from .servicio import Servicio, ServicioError
 
 
+def banco_central(settings: Settings) -> Optional[BancoCentral]:
+    if not (settings.bcch_token or (settings.bcch_usuario and settings.bcch_clave)):
+        return None
+    return BancoCentral(token=settings.bcch_token or None, usuario=settings.bcch_usuario or None,
+                        clave=settings.bcch_clave or None, series=settings.bcch_series)
+
+
 def create_app(settings: Optional[Settings] = None, database: Optional[Database] = None) -> FastAPI:
     settings = settings or get_settings()
     app = FastAPI(
@@ -37,7 +45,8 @@ def create_app(settings: Optional[Settings] = None, database: Optional[Database]
     )
     app.state.settings = settings
     app.state.db = database or Database(settings.database_url)
-    app.state.servicio = Servicio(Cifrador(settings.master_key), settings.permitir_caf_falsos)
+    app.state.servicio = Servicio(Cifrador(settings.master_key), settings.permitir_caf_falsos,
+                                  banco_central=banco_central(settings))
     app.state.recibidos = Recibidos(app.state.servicio)
     app.state.certificacion = Certificacion(app.state.servicio)
 

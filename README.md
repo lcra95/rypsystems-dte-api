@@ -180,6 +180,21 @@ curl -o muestras.zip $API/v1/empresas/{rut}/certificacion/muestras
 
 **Resultado de cada documento:** el SII informa el resultado de un envío resumido por tipo de documento. Los documentos de un tipo con reparos o rechazos quedan en `revisar`, y el detalle está en el envío (`GET /v1/envios/{id}`).
 
+### Tipo de cambio en exportación
+
+Los documentos de exportación (110, 111 y 112) informan los montos en pesos en `OtraMoneda`. Si el documento no trae `TpoCambio`, el servicio lo completa con el de la moneda de la operación a la fecha de emisión. Si es fin de semana o feriado, usa el último valor publicado.
+
+- **Producción:** usa la API de la BDE del Banco Central (`DTE_BCCH_TOKEN`, o `DTE_BCCH_USUARIO` y `DTE_BCCH_CLAVE`).
+  - El dólar observado (serie `F073.TCO.PRE.Z.D`) viene configurado.
+  - Las demás monedas se agregan con `DTE_BCCH_SERIES`; las series se buscan con `BancoCentral(...).buscar_series("euro")`.
+  - Sin Banco Central configurado, un documento de exportación sin `TpoCambio` se rechaza con `422`.
+- **Certificación:** si no hay Banco Central configurado, usa los valores referenciales del set de pruebas.
+
+```bash
+curl "$API/v1/empresas/78532566-4/tipo-cambio?moneda=DOLAR%20USA&fecha=2026-10-19"
+# → {"moneda": "DOLAR USA", "fecha": "2026-10-19", "tipo_cambio": 948.75, "fuente": "BancoCentral"}
+```
+
 ### Webhooks
 
 Con `DTE_WEBHOOK_URL`, cada cambio de estado de un documento (y de un envío de varios documentos o de un libro, evento `envio.estado`) se envía por `POST` con este cuerpo:

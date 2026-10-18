@@ -27,7 +27,9 @@ from rypsystems_dte import (
     anular as anular_core,
     emitir_documento,
 )
+from rypsystems_dte.certificacion.set_pruebas import TIPOS_CAMBIO_CERTIFICACION
 from rypsystems_dte.emision import DOCUMENTO_ANULACION
+from rypsystems_dte.tipo_cambio import EXPORTACION, ProveedorTipoCambio, TiposCambioFijos
 from rypsystems_dte.sii.base import SiiAmbiente
 
 from .models import Caf, Certificado, Documento, Empresa, EnvioSii, Tarea
@@ -62,9 +64,11 @@ AMBIENTES = {'certificacion': SiiAmbiente.CERTIFICACION, 'produccion': SiiAmbien
 
 
 class Servicio:
-    def __init__(self, cifrador: Cifrador, permitir_caf_falsos: bool = False):
+    def __init__(self, cifrador: Cifrador, permitir_caf_falsos: bool = False,
+                 banco_central: Optional[ProveedorTipoCambio] = None):
         self.cifrador = cifrador
         self.permitir_caf_falsos = permitir_caf_falsos
+        self.banco_central = banco_central
         self._certificados: Dict[str, DigitalCertificate] = {}
         self._lock = threading.Lock()
 
@@ -141,6 +145,17 @@ class Servicio:
         caf.siguiente = siguiente
         return caf
 
+    def tipo_cambio(self, empresa: Empresa) -> Optional[ProveedorTipoCambio]:
+        """
+        Tipo de cambio para exportación: el del Banco Central si está
+        configurado; en certificación, si no, los referenciales del SII.
+        """
+        if self.banco_central is not None:
+            return self.banco_central
+        if empresa.ambiente == 'certificacion':
+            return TiposCambioFijos(TIPOS_CAMBIO_CERTIFICACION)
+        return None
+
     def caf_core(self, caf: Caf) -> CafCore:
         return CafCore(self.cifrador.descifrar(caf.xml_cifrado))
 
@@ -193,12 +208,17 @@ class Servicio:
             raise DatosInvalidos('El folio lo asigna el servicio; no lo envíe en IdDoc.Folio.')
         certificado = self.certificado_empresa(empresa)
         datos['Encabezado']['Emisor'] = {**empresa.emisor, 'RUTEmisor': empresa.rut}
+        tipo_cambio = self.tipo_cambio(empresa)
+        otra = datos['Encabezado'].get('OtraMoneda') or {}
+        if tipo in EXPORTACION and tipo_cambio is None and not (isinstance(otra, dict) and otra.get('TpoCambio')):
+            raise DatosInvalidos('Los documentos de exportación requieren OtraMoneda.TpoCambio, o configurar el '
+                                 'Banco Central (DTE_BCCH_TOKEN) para calcularlo.')
 
         for _ in range(INTENTOS_FOLIO):
             caf, folio = self.asignar_folio(sesion, empresa, tipo)
             id_doc['Folio'] = folio
             try:
-                emitido = emitir_documento(datos, self.caf_core(caf), certificado)
+                emitido = emitir_documento(datos, self.caf_core(caf), certificado, tipo_cambio=tipo_cambio)
             except EmisionError as e:
                 sesion.rollback()
                 raise DatosInvalidos(str(e)) from e

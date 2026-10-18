@@ -1,5 +1,6 @@
 """Empresas emisoras, certificados y CAF."""
 
+from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
@@ -124,3 +125,19 @@ def listar_documentos(registro: Empresa = Depends(empresa), db: Session = Depend
     documentos = db.scalars(select(Documento).where(*filtros).order_by(Documento.creado.desc())
                             .limit(limite).offset(desplazamiento))
     return {'total': total, 'documentos': [documento_a_dict(d) for d in documentos]}
+
+
+@router.get('/empresas/{rut}/tipo-cambio', tags=['empresas'])
+def tipo_cambio(moneda: str = Query(..., examples=['DOLAR USA']),
+                fecha: Optional[str] = Query(None, pattern=r'^\d{4}-\d{2}-\d{2}$'),
+                registro: Empresa = Depends(empresa), srv: Servicio = Depends(servicio)):
+    """
+    Tipo de cambio que se usará en un documento de exportación de la empresa
+    (pesos por unidad de la moneda, en la fecha de emisión; por defecto hoy).
+    """
+    proveedor = srv.tipo_cambio(registro)
+    if proveedor is None:
+        raise Conflicto('No hay fuente de tipo de cambio: configure el Banco Central (DTE_BCCH_TOKEN).')
+    fecha = fecha or date.today().isoformat()
+    return {'moneda': moneda, 'fecha': fecha, 'tipo_cambio': proveedor.tipo_cambio(moneda, fecha),
+            'fuente': type(proveedor).__name__}

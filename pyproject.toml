@@ -11,7 +11,7 @@ authors = [{name = "RYP AI SYSTEMS SPA"}]
 requires-python = ">=3.10"
 dependencies = [
     # En producción, fijar el tag del core: rypsystems-dte @ git+ssh://...@v0.1.0
-    "rypsystems-dte>=0.2.0",
+    "rypsystems-dte>=0.3.0",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     "sqlalchemy>=2.0",

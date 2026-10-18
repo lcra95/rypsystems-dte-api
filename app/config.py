@@ -8,8 +8,13 @@ Configuración del servicio desde variables de entorno (prefijo DTE_).
 - DTE_WEBHOOK_URL / DTE_WEBHOOK_SECRET: aviso de cambios de estado al sistema principal (HMAC-SHA256).
 - DTE_PERMITIR_CAF_FALSOS: acepta CAF falsos (IDK 666), solo para pruebas.
 - DTE_CODIGO_FUENTE: URL del código fuente (AGPL, sección 13), informada en /licencia.
+- DTE_BCCH_TOKEN (o DTE_BCCH_USUARIO y DTE_BCCH_CLAVE): API de la BDE del Banco Central,
+  para el tipo de cambio de los documentos de exportación.
+- DTE_BCCH_SERIES: JSON con la serie por moneda distinta del dólar, p. ej.
+  {"EURO": "F072.CLP.EUR.N.O.D"} o {"EURO": {"paridad": "..."}}.
 """
 
+import json
 import os
 from dataclasses import dataclass
 from functools import lru_cache
@@ -29,6 +34,10 @@ class Settings:
     webhook_secret: str = ''
     permitir_caf_falsos: bool = False
     codigo_fuente: str = 'Solicitar a RYP AI SYSTEMS SPA'
+    bcch_token: str = ''
+    bcch_usuario: str = ''
+    bcch_clave: str = ''
+    bcch_series: Optional[dict] = None
     # Espera entre consultas de estado al SII (segundos): primera y máxima.
     consulta_espera_inicial: int = 15
     consulta_espera_maxima: int = 600
@@ -47,6 +56,10 @@ class Settings:
             webhook_secret=env.get('DTE_WEBHOOK_SECRET', ''),
             permitir_caf_falsos=_bool(env.get('DTE_PERMITIR_CAF_FALSOS')),
             codigo_fuente=env.get('DTE_CODIGO_FUENTE', cls.codigo_fuente),
+            bcch_token=env.get('DTE_BCCH_TOKEN', ''),
+            bcch_usuario=env.get('DTE_BCCH_USUARIO', ''),
+            bcch_clave=env.get('DTE_BCCH_CLAVE', ''),
+            bcch_series=json.loads(env['DTE_BCCH_SERIES']) if env.get('DTE_BCCH_SERIES') else None,
         )
 
     def validar(self) -> None:

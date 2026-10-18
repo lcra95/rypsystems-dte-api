@@ -127,7 +127,8 @@ class Certificacion:
 
         try:
             emitidos = emitir_set(registro.datos, emisor, certificado, asignar_folio,
-                                  receptores=list(receptores or RECEPTORES_CERTIFICACION))
+                                  receptores=list(receptores or RECEPTORES_CERTIFICACION),
+                                  tipo_cambio=self.servicio.tipo_cambio(empresa))
         except (EmisionError, Conflicto) as e:
             sesion.rollback()
             raise (e if isinstance(e, Conflicto) else DatosInvalidos(str(e))) from e
