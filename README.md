@@ -1,6 +1,6 @@
 # RYP Servicio DTE
 
-API REST **interna** de facturación electrónica para el SII de Chile. La usa solo el sistema principal de RYP, con un token de servicio. Emite, timbra y firma documentos, los envía al SII, consulta su estado, genera el PDF y los anula. Usa el core [`rypsystems-dte`](../rypsystems-dte).
+API REST **interna** de facturación electrónica para el SII de Chile. La usa solo el sistema principal de RYP, con un token de servicio. Emite, timbra y firma documentos, los envía al SII, consulta su estado, genera el PDF y los anula. También recibe los documentos de proveedores, responde el intercambio y registra en el SII su aceptación o reclamo. Usa el core [`rypsystems-dte`](../rypsystems-dte).
 
 No tiene lógica de negocio: los clientes, cobros, usuarios y reglas viven en el sistema principal, que llama a este servicio por HTTP.
 
@@ -115,6 +115,38 @@ Emite la nota que anula el documento (CodRef 1, por el total):
 
 Las guías de despacho no se anulan con una nota.
 
+### 5. Documentos recibidos
+
+```bash
+# EnvioDTE recibido por correo del proveedor
+curl -X POST $API/v1/empresas/78532566-4/recibidos -F archivo=@ENVIO_DTE_123.xml
+# → {"envio": {"id": "…", "cod_envio": 1, "estado": 0, "glosa": "Envio Recibido Conforme"},
+#    "documentos": [{"id": "…", "tipo": 33, "folio": 52679, "estado": "pendiente", …}], "repetidos": []}
+
+curl "$API/v1/empresas/78532566-4/recibidos?estado=pendiente"
+curl $API/v1/recibidos/{id}            # también /xml y /pdf
+
+# Respuestas del intercambio para enviar por correo al proveedor (XML firmados, en base64)
+curl -X POST $API/v1/envios-recibidos/{envio_id}/respuesta -H 'Content-Type: application/json' \
+  -d '{"rechazar": ["<id de un recibido>"], "nombre_contacto": "Contabilidad", "mail_contacto": "…"}'
+# → {"recepcion_envio": {…}, "resultado_dte": {…}, "recibo_mercaderias": {…}}
+
+# Registro de aceptación o reclamo en el SII (Ley 20.956)
+curl -X POST $API/v1/recibidos/{id}/aceptar -d '{"recibo_mercaderias": true}' -H 'Content-Type: application/json'
+curl -X POST $API/v1/recibidos/{id}/reclamar -d '{"accion": "RCD"}' -H 'Content-Type: application/json'
+curl $API/v1/recibidos/{id}/eventos     # eventos en el SII y fecha de recepción
+```
+
+**Validación al cargar:** se revisan el esquema, las firmas, el RUT receptor y los timbres. Los documentos que no pasan quedan `no_recibido` y se informan rechazados en `resultado_dte`.
+
+**Estados:** `pendiente`, `aceptado` (ACD), `recibo_mercaderias` (ERM), `reclamado` (RCD, RFP o RFT) y `no_recibido`.
+
+**Plazo:** el receptor tiene 8 días desde la recepción en el SII para reclamar. Pasado ese plazo, el documento se entiende aceptado.
+
+**Respuestas del SII:**
+- Si el SII no registra la acción (ya registrada, plazo vencido, factura al contado…), la API responde `409` con su glosa.
+- `GET …/eventos` sincroniza el estado con lo registrado en el SII, por ejemplo si se aceptó desde su sitio web.
+
 ### Webhooks
 
 Con `DTE_WEBHOOK_URL`, cada cambio de estado se envía por `POST` con este cuerpo:
@@ -134,7 +166,6 @@ DTE_TEST_DATABASE_URL=postgresql+psycopg://… pytest   # contra PostgreSQL
 
 ## Pendiente
 
-- **Recibidos:** carga de EnvioDTE, respuestas de intercambio y aceptar o reclamar con `RegistroReclamoService`.
 - **Certificación de nuevas empresas:** sets, simulación, intercambio y muestras impresas.
 - **Varios documentos por envío:** hoy se manda uno por envío. Agruparlos reduciría las llamadas al SII.
 - **Reenvío seguro:** si la conexión se corta justo después de que el SII recibió el sobre, el reintento lo vuelve a subir. El SII lo detecta como repetido; falta reconocer esa respuesta como éxito.

@@ -17,11 +17,12 @@ from fastapi.responses import JSONResponse
 from rypsystems_dte.errors import RypDteError
 
 from . import __version__
-from .api import documentos, empresas
+from .api import documentos, empresas, recibidos
 from .api.deps import autenticar
 from .config import Settings, get_settings
 from .db import Database
 from .seguridad import Cifrador
+from .recibidos import Recibidos
 from .servicio import Servicio, ServicioError
 
 
@@ -36,10 +37,12 @@ def create_app(settings: Optional[Settings] = None, database: Optional[Database]
     app.state.settings = settings
     app.state.db = database or Database(settings.database_url)
     app.state.servicio = Servicio(Cifrador(settings.master_key), settings.permitir_caf_falsos)
+    app.state.recibidos = Recibidos(app.state.servicio)
 
     protegido = [Depends(autenticar)]
     app.include_router(empresas.router, prefix='/v1', dependencies=protegido)
     app.include_router(documentos.router, prefix='/v1', dependencies=protegido)
+    app.include_router(recibidos.router, prefix='/v1', dependencies=protegido)
 
     @app.exception_handler(ServicioError)
     async def _servicio_error(request: Request, error: ServicioError):

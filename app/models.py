@@ -134,3 +134,65 @@ class Tarea(Base):
     intentos: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+
+class EnvioRecibido(Base):
+    """EnvioDTE recibido de un proveedor (intercambio entre contribuyentes)."""
+
+    __tablename__ = 'envios_recibidos'
+    __table_args__ = (UniqueConstraint('empresa_id', 'cod_envio'),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=nuevo_id)
+    empresa_id: Mapped[int] = mapped_column(ForeignKey('empresas.id'), index=True)
+    # Número correlativo del envío para la empresa (CodEnvio de las respuestas).
+    cod_envio: Mapped[int] = mapped_column(Integer)
+    nombre: Mapped[str] = mapped_column(String(80))
+    id_envio: Mapped[str] = mapped_column(String(80))
+    rut_emisor: Mapped[Optional[str]] = mapped_column(String(12), nullable=True)
+    estado: Mapped[int] = mapped_column(Integer)
+    glosa: Mapped[str] = mapped_column(String(200))
+    errores: Mapped[list] = mapped_column(JSON, default=list)
+    xml: Mapped[bytes] = mapped_column(LargeBinary)
+    creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+    empresa: Mapped[Empresa] = relationship()
+
+
+ESTADOS_RECIBIDO = (
+    'pendiente',          # recibido; el plazo de 8 días para reclamar corre desde la recepción en el SII
+    'aceptado',           # contenido aceptado (ACD) en el registro del SII
+    'recibo_mercaderias',  # recibo de mercaderías o servicios otorgado (ERM)
+    'reclamado',          # reclamado (RCD, RFP o RFT)
+    'no_recibido',        # no pasó la validación del intercambio (firma, RUT, timbre...)
+)
+
+
+class DocumentoRecibido(Base):
+    """DTE recibido de un proveedor."""
+
+    __tablename__ = 'documentos_recibidos'
+    __table_args__ = (
+        UniqueConstraint('empresa_id', 'rut_emisor', 'tipo', 'folio'),
+        Index('ix_recibidos_empresa_estado', 'empresa_id', 'estado'),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=nuevo_id)
+    empresa_id: Mapped[int] = mapped_column(ForeignKey('empresas.id'))
+    envio_id: Mapped[str] = mapped_column(ForeignKey('envios_recibidos.id'))
+    rut_emisor: Mapped[str] = mapped_column(String(12))
+    tipo: Mapped[int] = mapped_column(Integer)
+    folio: Mapped[int] = mapped_column(Integer)
+    fecha: Mapped[str] = mapped_column(String(10))
+    monto_total: Mapped[int] = mapped_column(Integer, default=0)
+    # Validación del intercambio (EstadoRecepDTE): 0 = recibido OK.
+    estado_recepcion: Mapped[int] = mapped_column(Integer)
+    glosa_recepcion: Mapped[str] = mapped_column(String(200))
+    estado: Mapped[str] = mapped_column(String(20), default='pendiente')
+    accion: Mapped[Optional[str]] = mapped_column(String(3), nullable=True)
+    respuesta_sii: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    xml: Mapped[bytes] = mapped_column(LargeBinary)
+    creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+    actualizado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora, onupdate=ahora)
+
+    empresa: Mapped[Empresa] = relationship()
+    envio: Mapped[EnvioRecibido] = relationship()

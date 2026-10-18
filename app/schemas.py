@@ -103,3 +103,39 @@ def normalizar_rut(rut: str) -> str:
         raise ValueError(f'RUT inválido: {rut}')
     return rut
 
+
+
+class AceptacionIn(BaseModel):
+    recibo_mercaderias: bool = Field(False, description='Otorgar el recibo de mercaderías o servicios (ERM) '
+                                                        'en vez de solo aceptar el contenido (ACD)')
+
+
+class ReclamoIn(BaseModel):
+    accion: Literal['RCD', 'RFP', 'RFT'] = Field('RCD', description='RCD contenido, RFP falta parcial y RFT falta '
+                                                                    'total de mercaderías')
+
+
+class RespuestaIntercambioIn(BaseModel):
+    rechazar: list[str] = Field(default_factory=list, description='Ids de documentos recibidos que se rechazan '
+                                                                   'comercialmente')
+    recinto: Optional[str] = Field(None, max_length=80, description='Lugar de recepción de las mercaderías')
+    nombre_contacto: Optional[str] = None
+    fono_contacto: Optional[str] = None
+    mail_contacto: Optional[str] = None
+    validar_timbre: bool = True
+
+
+def envio_recibido_a_dict(envio) -> Dict[str, Any]:
+    return {'id': envio.id, 'cod_envio': envio.cod_envio, 'nombre': envio.nombre, 'id_envio': envio.id_envio,
+            'rut_emisor': envio.rut_emisor, 'estado': envio.estado, 'glosa': envio.glosa, 'errores': envio.errores,
+            'creado': _iso(envio.creado)}
+
+
+def recibido_a_dict(doc) -> Dict[str, Any]:
+    return {
+        'id': doc.id, 'rut_receptor': doc.empresa.rut, 'envio_id': doc.envio_id, 'rut_emisor': doc.rut_emisor,
+        'tipo': doc.tipo, 'folio': doc.folio, 'fecha': doc.fecha, 'monto_total': doc.monto_total,
+        'estado_recepcion': doc.estado_recepcion, 'glosa_recepcion': doc.glosa_recepcion, 'estado': doc.estado,
+        'accion': doc.accion, 'respuesta_sii': doc.respuesta_sii, 'creado': _iso(doc.creado),
+        'actualizado': _iso(doc.actualizado),
+    }
