@@ -3,8 +3,10 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /srv
 
-# Core rypsystems-dte (contexto adicional "core" en docker-compose).
-COPY --from=core . /core
+# Core rypsystems-dte (contexto adicional "core" en docker-compose). Solo el código:
+# nada de output/, certificados ni entornos virtuales del repositorio del core.
+COPY --from=core pyproject.toml README.md COPYING NOTICE /core/
+COPY --from=core src /core/src
 RUN pip install --no-cache-dir /core
 
 COPY pyproject.toml COPYING NOTICE ./

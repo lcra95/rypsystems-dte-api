@@ -24,6 +24,10 @@ services:
       DTE_DATABASE_URL: postgresql+psycopg://dte:dte@db:5432/dte
     command: sh -c "alembic upgrade head && uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000"
     ports: ["127.0.0.1:8000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/salud')"]
+      interval: 5s
+      retries: 12
     depends_on:
       db: {condition: service_healthy}
 
@@ -34,7 +38,7 @@ services:
     command: python -m app.worker
     depends_on:
       db: {condition: service_healthy}
-      api: {condition: service_started}
+      api: {condition: service_healthy}   # las migraciones ya corrieron
 
 volumes:
   dte-db:

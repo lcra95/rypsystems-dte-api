@@ -197,6 +197,18 @@ pytest                                            # SQLite temporal, SII simulad
 DTE_TEST_DATABASE_URL=postgresql+psycopg://… pytest   # contra PostgreSQL
 ```
 
+Con PostgreSQL además corre `tests/test_concurrencia.py`:
+- 50 emisiones en paralelo, sin folios repetidos ni reintentos;
+- 4 workers sobre la misma cola, sin envíos duplicados.
+
+Para levantar un PostgreSQL de pruebas:
+
+```bash
+docker run -d --rm --name dte-test-pg -e POSTGRES_USER=dte -e POSTGRES_PASSWORD=dte -e POSTGRES_DB=dte_test \
+  -p 127.0.0.1:55432:5432 postgres:16
+DTE_TEST_DATABASE_URL=postgresql+psycopg://dte:dte@127.0.0.1:55432/dte_test pytest
+```
+
 ## Pendiente
 
 - **Varios documentos por envío en la emisión normal:** la certificación ya agrupa un set por envío, pero `POST /documentos` sigue mandando uno por envío. Agruparlos reduciría las llamadas al SII.
