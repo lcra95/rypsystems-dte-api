@@ -1,0 +1,10 @@
+RYP Servicio DTE
+Copyright (C) 2026 RYP AI SYSTEMS SPA
+
+Usa rypsystems-dte, traducción a Python de LibreDTE (https://www.libredte.cl),
+Copyright (C) SASCO SpA. Se distribuye bajo la GNU Affero General Public
+License versión 3 o posterior; ver COPYING.
+
+Sección 13 de la AGPL: quienes interactúan con este servicio a través de una
+red tienen derecho a su código fuente. La ruta GET /licencia informa dónde
+obtenerlo (variable DTE_CODIGO_FUENTE).
