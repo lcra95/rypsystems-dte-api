@@ -89,8 +89,15 @@ def documento_a_dict(documento: Documento) -> Dict[str, Any]:
         'id': documento.id, 'rut_emisor': documento.empresa.rut, 'tipo': documento.tipo, 'folio': documento.folio,
         'fecha': documento.fecha, 'receptor': documento.receptor, 'monto_total': documento.monto_total,
         'estado': documento.estado, 'track_id': documento.track_id, 'detalle_sii': documento.detalle_sii,
-        'anula_id': documento.anula_id, 'creado': _iso(documento.creado), 'actualizado': _iso(documento.actualizado),
+        'anula_id': documento.anula_id, 'envio_id': documento.envio_id, 'set_id': documento.set_id,
+        'caso': documento.caso, 'creado': _iso(documento.creado), 'actualizado': _iso(documento.actualizado),
     }
+
+
+def envio_sii_a_dict(envio) -> Dict[str, Any]:
+    return {'id': envio.id, 'rut_emisor': envio.empresa.rut, 'tipo': envio.tipo, 'estado': envio.estado,
+            'track_id': envio.track_id, 'detalle_sii': envio.detalle_sii, 'creado': _iso(envio.creado),
+            'actualizado': _iso(envio.actualizado)}
 
 
 def _iso(valor: Optional[datetime]) -> Optional[str]:
@@ -139,3 +146,26 @@ def recibido_a_dict(doc) -> Dict[str, Any]:
         'accion': doc.accion, 'respuesta_sii': doc.respuesta_sii, 'creado': _iso(doc.creado),
         'actualizado': _iso(doc.actualizado),
     }
+
+
+class SimulacionIn(BaseModel):
+    casos: list[Dict[str, Any]] = Field(description='Casos en el formato de examples/sets/simulacion.yaml: '
+                                                    'caso, tipo, detalle, y opcionales encabezado, referencia, '
+                                                    'receptor, referencias_extra, descuentos_recargos, comisiones')
+
+
+class EmisionSetIn(BaseModel):
+    receptores: Optional[list[Dict[str, Any]]] = Field(None, description='Receptores que rotan en los documentos '
+                                                                         'originales; por defecto organismos públicos')
+
+
+def set_prueba_a_dict(registro, documentos=None) -> Dict[str, Any]:
+    datos = registro.datos
+    resumen = {
+        'id': registro.id, 'numero_atencion': registro.numero_atencion, 'tipo_set': registro.tipo_set,
+        'titulo': registro.titulo, 'casos': len(datos['casos']) if isinstance(datos.get('casos'), list) else None,
+        'envio': envio_sii_a_dict(registro.envio) if registro.envio else None, 'creado': _iso(registro.creado),
+    }
+    if documentos is not None:
+        resumen['documentos'] = [documento_a_dict(d) for d in documentos]
+    return resumen

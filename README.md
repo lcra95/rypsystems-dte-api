@@ -147,9 +147,42 @@ curl $API/v1/recibidos/{id}/eventos     # eventos en el SII y fecha de recepció
 - Si el SII no registra la acción (ya registrada, plazo vencido, factura al contado…), la API responde `409` con su glosa.
 - `GET …/eventos` sincroniza el estado con lo registrado en el SII, por ejemplo si se aceptó desde su sitio web.
 
+### 6. Certificación de una empresa nueva
+
+La empresa se registra con `"ambiente": "certificacion"`, con su certificado y con los CAF de certificación que descarga en maullin.sii.cl. Las declaraciones de avance las hace su representante legal en el sitio del SII.
+
+```bash
+# 1. Set de pruebas: el archivo SIISetDePruebas<RUT>.txt que entrega el SII (o el set de boletas)
+curl -X POST $API/v1/empresas/{rut}/certificacion/sets -F archivo=@SIISetDePruebas785325664.txt \
+     -F 'tipos_cambio={"DOLAR USA": 950}'          # opcional, para exportación
+curl $API/v1/empresas/{rut}/certificacion          # sets y estado de cada envío
+
+# Emitir cada set (un envío por set); los libros, después de aceptado el set en que se basan
+curl -X POST $API/v1/certificacion/sets/{set_id}/emitir
+curl $API/v1/certificacion/sets/{set_id}           # documentos, track id y resultado del SII
+
+# 2. Simulación: casos con datos de la operación real (formato de examples/sets/simulacion.yaml)
+curl -X POST $API/v1/empresas/{rut}/certificacion/simulacion -H 'Content-Type: application/json' \
+     -d '{"casos": [{"caso": "SIM-01", "tipo": 33, "detalle": [...]}, ...]}'
+curl -X POST $API/v1/certificacion/sets/{simulacion_id}/emitir
+
+# 3. Intercambio: XML que entrega el SII → tres respuestas (base64) para subir en maullin
+curl -X POST $API/v1/empresas/{rut}/certificacion/intercambio -F archivo=@ENVIO_DTE_123.xml
+
+# 4. Documentos impresos: ZIP con un PDF por documento y por copia cedible
+curl -o muestras.zip $API/v1/empresas/{rut}/certificacion/muestras
+```
+
+**El set de pruebas:**
+- **Lectura:** el texto del SII se convierte con `rypsystems_dte.certificacion.leer_set_pruebas`, que reproduce exactamente los sets que el SII aceptó a RYP AI SYSTEMS.
+- **Emisión:** cada documento lleva la referencia al caso. Los receptores rotan entre organismos públicos, o entre los que se entreguen en `receptores`.
+- **Reemisión:** un set rechazado se puede volver a emitir, con folios nuevos.
+
+**Resultado de cada documento:** el SII informa el resultado de un envío resumido por tipo de documento. Los documentos de un tipo con reparos o rechazos quedan en `revisar`, y el detalle está en el envío (`GET /v1/envios/{id}`).
+
 ### Webhooks
 
-Con `DTE_WEBHOOK_URL`, cada cambio de estado se envía por `POST` con este cuerpo:
+Con `DTE_WEBHOOK_URL`, cada cambio de estado de un documento (y de un envío de varios documentos o de un libro, evento `envio.estado`) se envía por `POST` con este cuerpo:
 
 ```json
 {"evento": "documento.estado", "estado_anterior": "enviado", "documento": {"id": "…", "estado": "aceptado", …}}
@@ -166,6 +199,5 @@ DTE_TEST_DATABASE_URL=postgresql+psycopg://… pytest   # contra PostgreSQL
 
 ## Pendiente
 
-- **Certificación de nuevas empresas:** sets, simulación, intercambio y muestras impresas.
-- **Varios documentos por envío:** hoy se manda uno por envío. Agruparlos reduciría las llamadas al SII.
+- **Varios documentos por envío en la emisión normal:** la certificación ya agrupa un set por envío, pero `POST /documentos` sigue mandando uno por envío. Agruparlos reduciría las llamadas al SII.
 - **Reenvío seguro:** si la conexión se corta justo después de que el SII recibió el sobre, el reintento lo vuelve a subir. El SII lo detecta como repetido; falta reconocer esa respuesta como éxito.

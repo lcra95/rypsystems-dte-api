@@ -83,8 +83,48 @@ ESTADOS_DOCUMENTO = (
     'aceptado',
     'aceptado_reparos',
     'rechazado',
+    'revisar',           # envío de varios documentos con reparos o rechazos en su tipo (ver el envío)
     'error',             # no se pudo enviar o consultar (ver detalle)
 )
+
+
+class EnvioSii(Base):
+    """
+    Envío al SII: un sobre con uno o varios documentos (EnvioDTE o
+    EnvioBOLETA) o un libro. Tiene su track id y el resultado del SII.
+    """
+
+    __tablename__ = 'envios_sii'
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=nuevo_id)
+    empresa_id: Mapped[int] = mapped_column(ForeignKey('empresas.id'), index=True)
+    tipo: Mapped[str] = mapped_column(String(10), default='dte')  # dte, boletas, libro
+    estado: Mapped[str] = mapped_column(String(20), default='pendiente')
+    xml: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
+    track_id: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    detalle_sii: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+    actualizado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora, onupdate=ahora)
+
+    empresa: Mapped[Empresa] = relationship()
+
+
+class SetPrueba(Base):
+    """Set de la certificación de una empresa: set de pruebas del SII, libro o simulación."""
+
+    __tablename__ = 'sets_prueba'
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=nuevo_id)
+    empresa_id: Mapped[int] = mapped_column(ForeignKey('empresas.id'), index=True)
+    numero_atencion: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    tipo_set: Mapped[str] = mapped_column(String(20))
+    titulo: Mapped[str] = mapped_column(String(120))
+    datos: Mapped[Dict[str, Any]] = mapped_column(JSON)
+    envio_id: Mapped[Optional[str]] = mapped_column(ForeignKey('envios_sii.id'), nullable=True)
+    creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+    empresa: Mapped[Empresa] = relationship()
+    envio: Mapped[Optional[EnvioSii]] = relationship()
 
 
 class Documento(Base):
@@ -109,15 +149,19 @@ class Documento(Base):
     detalle_sii: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
     idempotency_key: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     anula_id: Mapped[Optional[str]] = mapped_column(ForeignKey('documentos.id'), nullable=True)
+    envio_id: Mapped[Optional[str]] = mapped_column(ForeignKey('envios_sii.id'), nullable=True, index=True)
+    set_id: Mapped[Optional[str]] = mapped_column(ForeignKey('sets_prueba.id'), nullable=True, index=True)
+    caso: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
     actualizado: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora, onupdate=ahora)
 
     empresa: Mapped[Empresa] = relationship()
+    envio: Mapped[Optional[EnvioSii]] = relationship()
 
 
 class Tarea(Base):
     """
-    Cola de trabajo en la base de datos: enviar, consultar y webhook.
+    Cola de trabajo en la base de datos: enviar y consultar (un envío) y webhook.
     Un worker las toma con bloqueo (SKIP LOCKED en PostgreSQL).
     """
 
@@ -127,6 +171,7 @@ class Tarea(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     tipo: Mapped[str] = mapped_column(String(20))
     documento_id: Mapped[Optional[str]] = mapped_column(ForeignKey('documentos.id'), nullable=True)
+    envio_id: Mapped[Optional[str]] = mapped_column(ForeignKey('envios_sii.id'), nullable=True)
     payload: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
     estado: Mapped[str] = mapped_column(String(20), default='pendiente')  # pendiente, en_proceso, hecha, fallida
     ejecutar_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)

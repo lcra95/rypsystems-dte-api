@@ -120,11 +120,12 @@ def test_boleta_se_envia_como_envio_boleta(client, empresa, entorno):
 def test_reintento_y_error_de_envio(client, empresa, entorno, settings):
     procesador, sii, _, database = entorno
     doc = client.post(f'/v1/empresas/{RUT}/documentos', json=factura()).json()
-    procesador.cliente_sii(documento_con_empresa(database, doc['id']))
+    procesador.cliente_sii(documento_con_empresa(database, doc["id"]).empresa)
     sii['cliente'].fallas_envio = 1
     with database.sesiones() as s:
         procesador.procesar_pendientes(s)
-        tarea = s.scalar(select(Tarea).where(Tarea.documento_id == doc['id'], Tarea.tipo == 'enviar'))
+        envio_id = s.get(Documento, doc['id']).envio_id
+        tarea = s.scalar(select(Tarea).where(Tarea.envio_id == envio_id, Tarea.tipo == 'enviar'))
         assert tarea.estado == 'pendiente' and 'HTTP 503' in tarea.error
     adelantar(database)
     with database.sesiones() as s:

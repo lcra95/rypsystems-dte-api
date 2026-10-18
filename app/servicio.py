@@ -10,7 +10,7 @@ worker a partir de las tareas.
 import copy
 import threading
 from datetime import date, datetime, timezone
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
@@ -30,7 +30,7 @@ from rypsystems_dte import (
 from rypsystems_dte.emision import DOCUMENTO_ANULACION
 from rypsystems_dte.sii.base import SiiAmbiente
 
-from .models import Caf, Certificado, Documento, Empresa, Tarea
+from .models import Caf, Certificado, Documento, Empresa, EnvioSii, Tarea
 from .seguridad import Cifrador
 
 
@@ -246,18 +246,48 @@ class Servicio:
         sesion.commit()
         return documento, True
 
-    @staticmethod
-    def _guardar(sesion: Session, empresa: Empresa, emitido: DocumentoEmitido, datos: Dict[str, Any],
+    def _guardar(self, sesion: Session, empresa: Empresa, emitido: DocumentoEmitido, datos: Dict[str, Any],
                  idempotency_key: Optional[str], anula: Optional[Documento]) -> Documento:
+        documento = self.guardar_documento(sesion, empresa, emitido, datos, idempotency_key=idempotency_key,
+                                           anula=anula)
+        self.encolar_envio(sesion, empresa, [documento])
+        return documento
+
+    @staticmethod
+    def guardar_documento(sesion: Session, empresa: Empresa, emitido: DocumentoEmitido, datos: Dict[str, Any],
+                          idempotency_key: Optional[str] = None, anula: Optional[Documento] = None,
+                          set_id: Optional[str] = None, caso: Optional[str] = None) -> Documento:
         documento = Documento(
             empresa_id=empresa.id, tipo=emitido.tipo, folio=emitido.folio, fecha=emitido.fecha,
             receptor=emitido.receptor, monto_total=int(emitido.totales.get('MntTotal') or 0), estado='emitido',
             xml=emitido.xml, datos=datos, idempotency_key=idempotency_key, anula_id=anula.id if anula else None,
+            set_id=set_id, caso=caso,
         )
         sesion.add(documento)
         sesion.flush()
-        sesion.add(Tarea(tipo='enviar', documento_id=documento.id))
         return documento
+
+    @staticmethod
+    def encolar_envio(sesion: Session, empresa: Empresa, documentos: List[Documento]) -> EnvioSii:
+        """Agrupa los documentos en un envío (EnvioDTE o EnvioBOLETA) y agenda su envío al SII."""
+        boletas = {d.tipo in (39, 41) for d in documentos}
+        if len(boletas) != 1:
+            raise DatosInvalidos('Un envío no puede mezclar boletas con otros documentos.')
+        envio = EnvioSii(empresa_id=empresa.id, tipo='boletas' if boletas.pop() else 'dte')
+        sesion.add(envio)
+        sesion.flush()
+        for documento in documentos:
+            documento.envio_id = envio.id
+        sesion.add(Tarea(tipo='enviar', envio_id=envio.id))
+        return envio
+
+    @staticmethod
+    def encolar_libro(sesion: Session, empresa: Empresa, xml: bytes) -> EnvioSii:
+        envio = EnvioSii(empresa_id=empresa.id, tipo='libro', xml=xml)
+        sesion.add(envio)
+        sesion.flush()
+        sesion.add(Tarea(tipo='enviar', envio_id=envio.id))
+        return envio
 
     # ------------------------------------------------------------------
     # PDF
