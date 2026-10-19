@@ -6,7 +6,7 @@ from app.config import Settings
 from app.main import create_app
 from rypsystems_dte import TiposCambioFijos
 
-from .conftest import RUT, caf_xml
+from .conftest import RUT, caf_xml, pasar_a_produccion
 
 EXPORTACION = {'documento': {
     'Encabezado': {'IdDoc': {'TipoDTE': 110, 'IndServicio': 3},
@@ -36,7 +36,7 @@ def test_certificacion_usa_referenciales(client, exportadora):
 
 
 def test_produccion_requiere_banco_central(client, exportadora, app):
-    client.patch(f'/v1/empresas/{RUT}', json={'ambiente': 'produccion'})
+    pasar_a_produccion(app)
     respuesta = client.post(f'/v1/empresas/{RUT}/documentos', json=EXPORTACION)
     assert respuesta.status_code == 422 and 'DTE_BCCH_TOKEN' in respuesta.json()['detail']
     assert client.get(f'/v1/empresas/{RUT}/tipo-cambio', params={'moneda': 'DOLAR USA'}).status_code == 409
@@ -50,7 +50,7 @@ def test_produccion_requiere_banco_central(client, exportadora, app):
 
 def test_banco_central_configurado(client, exportadora, app):
     app.state.servicio.banco_central = TiposCambioFijos({'DOLAR USA': 948.75})
-    client.patch(f'/v1/empresas/{RUT}', json={'ambiente': 'produccion'})
+    pasar_a_produccion(app)
     doc = client.post(f'/v1/empresas/{RUT}/documentos', json=EXPORTACION).json()
     assert b'<TpoCambio>948.75</TpoCambio>' in otra_moneda(client, doc)
 

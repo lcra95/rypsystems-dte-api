@@ -67,6 +67,13 @@ def ver_empresa(registro: Empresa = Depends(empresa)):
 def actualizar_empresa(datos: EmpresaUpdate, registro: Empresa = Depends(empresa), db: Session = Depends(sesion)):
     cambios = datos.model_dump(exclude_unset=True)
     _certificado(db, cambios.get('certificado_id'))
+    if cambios.get('ambiente') not in (None, registro.ambiente) and (
+            db.scalar(select(Caf.id).where(Caf.empresa_id == registro.id).limit(1)) or
+            db.scalar(select(Documento.id).where(Documento.empresa_id == registro.id).limit(1))):
+        # Los CAF y folios de certificación no valen en producción (ni al revés):
+        # cada ambiente va en su propia base de datos.
+        raise Conflicto(f'La empresa {registro.rut} ya tiene CAF o documentos en {registro.ambiente}; '
+                        'no se puede cambiar de ambiente.')
     for campo, valor in cambios.items():
         setattr(registro, campo, valor)
     db.commit()

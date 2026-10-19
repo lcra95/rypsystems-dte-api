@@ -67,6 +67,8 @@ curl -X PATCH $API/v1/empresas/78532566-4/cafs/1 -d '{"siguiente": 31}' -H 'Cont
 
 Un mismo certificado puede servir a varias empresas, siempre que su titular esté autorizado en el SII para firmar y enviar por ellas. El CAF debe ser de la empresa y de su ambiente (certificación o producción).
 
+**Un despliegue (y una base de datos) por ambiente.** El RUT es único por base y los folios de certificación se repiten en producción, así que la empresa en producción se registra en el despliegue de producción, con su resolución de producción (para empresas autorizadas por el proceso de certificación el SII indica N° 80 del 22-08-2014; confirmar en los datos de la empresa autorizada) y los CAF descargados en palena.sii.cl. La API rechaza cambiar el ambiente de una empresa que ya tiene CAF o documentos.
+
 ### 2. Emitir
 
 ```bash

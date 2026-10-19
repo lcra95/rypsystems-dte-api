@@ -94,3 +94,11 @@ def factura(**extra):
         'Detalle': [{'NmbItem': 'Desarrollo de software', 'QtyItem': 2, 'PrcItem': 50000}],
         **extra,
     }}
+
+
+def pasar_a_produccion(app, rut=RUT):
+    """Deja la empresa en producción por la base (la API no lo permite si ya tiene CAF)."""
+    from app.models import Empresa
+    with app.state.db.sesiones() as db:
+        db.execute(Empresa.__table__.update().where(Empresa.rut == rut).values(ambiente='produccion'))
+        db.commit()

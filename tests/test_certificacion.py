@@ -12,7 +12,7 @@ from sqlalchemy import update
 from app.models import Tarea, ahora
 from app.tareas import Procesador
 
-from .conftest import RUT, caf_xml
+from .conftest import RUT, caf_xml, pasar_a_produccion
 from .test_recibidos import envio_proveedor  # noqa: F401 - fixture
 
 FIXTURES = Path(__file__).resolve().parent / 'fixtures'
@@ -195,7 +195,7 @@ def test_intercambio(client, empresa, envio_proveedor):  # noqa: F811
     assert b'<RecepcionEnvio>' in base64.b64decode(datos['respuestas']['recepcion_envio']['contenido'])
 
 
-def test_solo_en_certificacion(client, certificando):
-    client.patch(f'/v1/empresas/{RUT}', json={'ambiente': 'produccion'})
+def test_solo_en_certificacion(client, certificando, app):
+    pasar_a_produccion(app)
     respuesta = client.post(f'/v1/certificacion/sets/{certificando["basico"]["id"]}/emitir')
     assert respuesta.status_code == 409 and 'certificación' in respuesta.json()['detail']

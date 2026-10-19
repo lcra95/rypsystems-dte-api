@@ -28,6 +28,10 @@ def test_empresa_y_folios(client, empresa):
     # Emisor incompleto
     respuesta = client.patch(f'/v1/empresas/{RUT}', json={'emisor': {'RznSoc': 'X'}})
     assert respuesta.status_code == 422
+    # Con CAF de certificación no se puede pasar a producción
+    respuesta = client.patch(f'/v1/empresas/{RUT}', json={'ambiente': 'produccion'})
+    assert respuesta.status_code == 409 and 'ambiente' in respuesta.json()['detail']
+    assert client.patch(f'/v1/empresas/{RUT}', json={'ambiente': 'certificacion'}).status_code == 200
 
 
 def test_emitir_factura(client, empresa):
