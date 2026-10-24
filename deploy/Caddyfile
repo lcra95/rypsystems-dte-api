@@ -1,0 +1,22 @@
+# HTTPS automático (Let's Encrypt) para DTE_DOMINIO. Con "localhost" usa un
+# certificado local, para probar el despliegue en un equipo propio.
+{
+	email {$ACME_EMAIL}
+}
+
+{$DTE_DOMINIO} {
+	# Solo el sistema principal debería llamar al servicio: restringir a sus IP.
+	@fuera not remote_ip {$DTE_IPS_PERMITIDAS}
+	respond @fuera 403
+
+	request_body {
+		max_size 10MB
+	}
+	encode gzip
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+	}
+	reverse_proxy api:8000
+}

@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 import json
+import time
 from datetime import timedelta
 
 import pytest
@@ -169,3 +170,12 @@ def test_webhook_fallido_se_reintenta(client, empresa, entorno):
 ])
 def test_estado_documento(resultado, estado):
     assert estado_documento(resultado) == estado
+
+
+def test_latido(tmp_path, monkeypatch):
+    from app import worker
+    monkeypatch.setattr(worker, 'LATIDO', tmp_path / 'latido')
+    assert not worker.sano()
+    worker.LATIDO.touch()
+    assert worker.sano()
+    assert not worker.sano(ahora=time.time() + worker.LATIDO_MAXIMO + 1)

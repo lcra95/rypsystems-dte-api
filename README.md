@@ -30,6 +30,8 @@ cp .env.example .env            # completar DTE_SERVICE_TOKEN y DTE_MASTER_KEY
 docker compose up --build       # PostgreSQL + API (127.0.0.1:8000) + worker
 ```
 
+Ese compose es para desarrollo. **Producción** (HTTPS, secretos, respaldos cifrados y scripts del servidor): ver [`deploy/README.md`](deploy/README.md).
+
 Sin Docker:
 
 ```bash

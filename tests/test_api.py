@@ -12,7 +12,7 @@ def test_requiere_token(app):
     with TestClient(app) as sin_token:
         assert sin_token.get(f'/v1/empresas/{RUT}').status_code == 401
         assert sin_token.get(f'/v1/empresas/{RUT}', headers={'Authorization': 'Bearer otro'}).status_code == 401
-        assert sin_token.get('/salud').status_code == 200
+        assert sin_token.get('/salud').json()['estado'] == 'ok'
         assert sin_token.get('/licencia').json()['licencia'] == 'AGPL-3.0-or-later'
 
 
@@ -126,3 +126,10 @@ def test_folios_sin_repetir_en_paralelo(client, empresa):
 
 def test_token_correcto(client):
     assert client.headers['Authorization'] == f'Bearer {TOKEN}'
+
+
+def test_salud_sin_base_de_datos(app):
+    from app.db import Database
+    app.state.db = Database('sqlite:////no/existe/dte.db')
+    with TestClient(app) as cliente:
+        assert cliente.get('/salud').status_code == 503

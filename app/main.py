@@ -13,6 +13,7 @@ from typing import Optional
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 from rypsystems_dte import BancoCentral
 from rypsystems_dte.errors import RypDteError
@@ -66,6 +67,12 @@ def create_app(settings: Optional[Settings] = None, database: Optional[Database]
 
     @app.get('/salud', tags=['sistema'])
     def salud():
+        """Para el monitoreo: 503 si la base de datos no responde."""
+        try:
+            with app.state.db.sesiones() as db:
+                db.execute(text('SELECT 1'))
+        except Exception:  # noqa: BLE001
+            return JSONResponse({'estado': 'sin base de datos', 'version': __version__}, status_code=503)
         return {'estado': 'ok', 'version': __version__}
 
     @app.get('/licencia', tags=['sistema'])

@@ -11,3 +11,7 @@ build/
 *.p12
 *.pem
 *.key
+
+# Producción
+deploy/.env
+deploy/respaldos/

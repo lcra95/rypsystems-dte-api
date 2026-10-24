@@ -11,3 +11,5 @@ tests
 *.p12
 *.pem
 *.key
+deploy/.env
+deploy/respaldos

@@ -30,3 +30,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t rypsystems-dte-api .
+      - name: Compose de producción válido
+        working-directory: deploy
+        run: |
+          printf 'DTE_DOMINIO=localhost\nACME_EMAIL=ci@example.com\nPOSTGRES_PASSWORD=ci\n' > .env
+          docker compose -f compose.prod.yml config --quiet
+          docker compose -f compose.prod.yml build respaldo
+          sh -n respaldo/respaldar.sh && sh -n respaldo/restaurar.sh && sh -n desplegar.sh && sh -n generar-secretos.sh && sh -n preparar-servidor.sh

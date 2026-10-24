@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rypsystems-dte-api"
-version = "0.1.0"
+version = "0.2.0"
 description = "Servicio DTE de RYP: API REST interna de facturación electrónica (SII de Chile)"
 license = {text = "AGPL-3.0-or-later"}
 authors = [{name = "RYP AI SYSTEMS SPA"}]

@@ -1,0 +1,116 @@
+# Producción: Caddy (HTTPS) + API + worker + PostgreSQL + respaldo diario.
+#
+#   cd deploy && ./generar-secretos.sh     # crea deploy/.env (una vez)
+#   ./desplegar.sh v0.1.0                  # construye y levanta ese tag
+#
+# Solo Caddy publica puertos. La base de datos y la API quedan en la red
+# interna "rypsystems-dte", a la que se puede unir el sistema principal
+# si corre en el mismo servidor (usa entonces http://api:8000).
+name: rypsystems-dte
+
+x-logs: &logs
+  logging:
+    driver: json-file
+    options: {max-size: 10m, max-file: "5"}
+
+x-app: &app
+  build: {context: ..}
+  image: rypsystems-dte-api:${DTE_VERSION:-local}
+  env_file: .env
+  environment:
+    DTE_DATABASE_URL: postgresql+psycopg://dte:${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD en deploy/.env}@db:5432/dte
+  restart: unless-stopped
+  networks: [interna]
+  <<: *logs
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: dte
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD en deploy/.env}
+      POSTGRES_DB: dte
+    volumes: [db:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dte -d dte"]
+      interval: 10s
+      retries: 10
+    restart: unless-stopped
+    networks: [interna]
+    <<: *logs
+
+  migrar:
+    <<: *app
+    command: alembic upgrade head
+    restart: "no"
+    depends_on:
+      db: {condition: service_healthy}
+
+  api:
+    <<: *app
+    command: uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips "*"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/salud', timeout=5)"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    depends_on:
+      migrar: {condition: service_completed_successfully}
+
+  worker:
+    <<: *app
+    command: python -m app.worker
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.worker", "--salud"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      migrar: {condition: service_completed_successfully}
+
+  caddy:
+    image: caddy:2.8
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    environment:
+      DTE_DOMINIO: ${DTE_DOMINIO:?falta DTE_DOMINIO en deploy/.env}
+      DTE_IPS_PERMITIDAS: ${DTE_IPS_PERMITIDAS:-0.0.0.0/0 ::/0}
+      ACME_EMAIL: ${ACME_EMAIL:?falta ACME_EMAIL en deploy/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-datos:/data
+      - caddy-config:/config
+    restart: unless-stopped
+    networks: [interna]
+    depends_on:
+      api: {condition: service_healthy}
+    <<: *logs
+
+  respaldo:
+    build: {context: ./respaldo}
+    image: rypsystems-dte-respaldo:local
+    env_file: .env
+    environment:
+      PGHOST: db
+      PGUSER: dte
+      PGDATABASE: dte
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ:-America/Santiago}
+    volumes:
+      - ./respaldos:/respaldos
+    restart: unless-stopped
+    networks: [interna]
+    depends_on:
+      db: {condition: service_healthy}
+    <<: *logs
+
+networks:
+  interna:
+    name: rypsystems-dte
+
+volumes:
+  db:
+  caddy-datos:
+  caddy-config:
