@@ -1,6 +1,6 @@
 # RYP Servicio DTE
 
-API REST **interna** de facturación electrónica para el SII de Chile. La usa solo el sistema principal de RYP, con un token de servicio. Emite, timbra y firma documentos, los envía al SII, consulta su estado, genera el PDF y los anula. También recibe los documentos de proveedores, responde el intercambio y registra en el SII su aceptación o reclamo. Usa el core [`rypsystems-dte`](../rypsystems-dte).
+API REST **interna** de facturación electrónica para el SII de Chile. La usa solo el sistema principal de RYP, con un token de servicio. Emite, timbra y firma documentos, los envía al SII, consulta su estado, genera el PDF y los anula. También recibe los documentos de proveedores, responde el intercambio y registra en el SII su aceptación o reclamo. Usa el core [`rypsystems-dte`](https://github.com/lcra95/rypsystems-dte), fijado a un tag en `pyproject.toml`.
 
 No tiene lógica de negocio: los clientes, cobros, usuarios y reglas viven en el sistema principal, que llama a este servicio por HTTP.
 
@@ -33,7 +33,7 @@ docker compose up --build       # PostgreSQL + API (127.0.0.1:8000) + worker
 Sin Docker:
 
 ```bash
-uv venv && uv pip install -e ../rypsystems-dte -e ".[test]"
+uv venv && uv pip install -e ".[test]"   # para modificar también el core: uv pip install -e ../rypsystems-dte
 export DTE_SERVICE_TOKEN=... DTE_MASTER_KEY=... DTE_DATABASE_URL=sqlite:///./dte.db
 alembic upgrade head
 uvicorn app.main:create_app --factory --reload
@@ -50,7 +50,7 @@ Todas las rutas `/v1` exigen `Authorization: Bearer $DTE_SERVICE_TOKEN`.
 
 ```bash
 curl -X POST $API/v1/certificados -F archivo=@firma.pfx -F clave=****
-# → {"id": "…", "rut": "25957199-5", "nombre": "…", "vence": "…"}
+# → {"id": "…", "rut": "11111111-1", "nombre": "…", "vence": "…"}
 
 curl -X POST $API/v1/empresas -H 'Content-Type: application/json' -d '{
   "rut": "78532566-4",

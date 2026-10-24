@@ -33,7 +33,7 @@ class Settings:
     webhook_url: Optional[str] = None
     webhook_secret: str = ''
     permitir_caf_falsos: bool = False
-    codigo_fuente: str = 'Solicitar a RYP AI SYSTEMS SPA'
+    codigo_fuente: str = 'https://github.com/lcra95/rypsystems-dte-api'
     bcch_token: str = ''
     bcch_usuario: str = ''
     bcch_clave: str = ''

@@ -17,8 +17,6 @@ services:
   api:
     build: &build
       context: .
-      additional_contexts:
-        core: ../rypsystems-dte
     env_file: .env
     environment: &db
       DTE_DATABASE_URL: postgresql+psycopg://dte:dte@db:5432/dte
