@@ -133,3 +133,19 @@ def test_salud_sin_base_de_datos(app):
     app.state.db = Database('sqlite:////no/existe/dte.db')
     with TestClient(app) as cliente:
         assert cliente.get('/salud').status_code == 503
+
+
+def test_anular_reintento_con_la_misma_clave_devuelve_la_nota(client, empresa):
+    """Un reintento tras un timeout (misma Idempotency-Key) devuelve la nota ya
+    emitida, no un 409 "ya tiene una anulación": si no, el cliente nunca sabe
+    qué nota anuló el documento."""
+    original = client.post(f'/v1/empresas/{RUT}/documentos', json=factura()).json()
+    clave = {'Idempotency-Key': 'anula-1'}
+    primera = client.post(f'/v1/documentos/{original["id"]}/anular', json={'razon': 'Cancelado'}, headers=clave)
+    assert primera.status_code == 202, primera.text
+    segunda = client.post(f'/v1/documentos/{original["id"]}/anular', json={'razon': 'Cancelado'}, headers=clave)
+    assert segunda.status_code == 200, segunda.text
+    assert segunda.json()['id'] == primera.json()['id']
+    # Otra clave sí es una segunda anulación: se rechaza.
+    otra = client.post(f'/v1/documentos/{original["id"]}/anular', headers={'Idempotency-Key': 'anula-2'})
+    assert otra.status_code == 409

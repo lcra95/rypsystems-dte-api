@@ -239,7 +239,16 @@ class Servicio:
 
     def anular(self, sesion: Session, original: Documento, razon: str = 'ANULA DOCUMENTO',
                idempotency_key: Optional[str] = None) -> Tuple[Documento, bool]:
-        """Emite la nota que anula el documento (CodRef 1) y la encola."""
+        """Emite la nota que anula el documento (CodRef 1) y la encola.
+
+        La Idempotency-Key se mira PRIMERO: un reintento tras un timeout debe
+        recibir la nota ya emitida, no "ya tiene una anulación".
+        """
+        if idempotency_key:
+            previo = sesion.scalar(select(Documento).where(Documento.empresa_id == original.empresa_id,
+                                                           Documento.idempotency_key == idempotency_key))
+            if previo:
+                return previo, False
         if original.estado == 'rechazado':
             raise Conflicto('El documento fue rechazado por el SII; no requiere anulación.')
         tipo = DOCUMENTO_ANULACION.get(original.tipo)
@@ -248,11 +257,6 @@ class Servicio:
         if sesion.scalar(select(Documento).where(Documento.anula_id == original.id,
                                                  Documento.estado != 'rechazado')):
             raise Conflicto('El documento ya tiene una anulación.')
-        if idempotency_key:
-            previo = sesion.scalar(select(Documento).where(Documento.empresa_id == original.empresa_id,
-                                                           Documento.idempotency_key == idempotency_key))
-            if previo:
-                return previo, False
         empresa = original.empresa
         certificado = self.certificado_empresa(empresa)
         caf, folio = self.asignar_folio(sesion, empresa, tipo)
